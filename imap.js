@@ -19,17 +19,24 @@ function openInbox(cb) {
   imap.openBox('INBOX', false, cb);
 }
 
-imap.once('ready', () => {
-  console.log('IMAP connection ready...');
+function checkEmails() {
   openInbox((err, box) => {
-    if (err) throw err;
+    if (err) {
+      console.error('Error opening inbox:', err);
+      reconnect();
+      return;
+    }
 
     // Search for unread emails
     imap.search(['UNSEEN'], (searchErr, results) => {
-      if (searchErr) throw searchErr;
+      if (searchErr) {
+        console.error('Search error:', searchErr);
+        reconnect();
+        return;
+      }
+
       if (!results || !results.length) {
-        console.log('No new emails found.');
-        imap.end();
+        console.log('No new emails found. Waiting for next check...');
         return;
       }
 
@@ -76,14 +83,42 @@ imap.once('ready', () => {
       });
     });
   });
+}
+
+function reconnect() {
+  console.log('Attempting to reconnect...');
+  if (imap.state !== 'disconnected') {
+    imap.end();
+  }
+  setTimeout(() => {
+    imap.connect();
+  }, 5000); // Wait 5 seconds before reconnecting
+}
+
+// Set up event handlers for connection monitoring
+imap.once('ready', () => {
+  console.log('IMAP connection ready...');
+  
+  // Initial check
+  checkEmails();
+  
+  // Set up interval for continuous checking
+  setInterval(() => {
+    if (imap.state === 'authenticated') {
+      checkEmails();
+    }
+  }, 30000); // Check every 30 seconds
 });
 
-imap.once('error', (err) => {
+// Enhanced error handling
+imap.on('error', (err) => {
   console.error('IMAP error:', err);
+  reconnect();
 });
 
-imap.once('end', () => {
+imap.on('end', () => {
   console.log('IMAP connection ended');
+  reconnect();
 });
 
 export function startImap() {
