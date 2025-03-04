@@ -16,18 +16,18 @@ export function parseEmail(mail) {
 
   // Extract all fields, including our new one
   const {
-    userName,
+    senderName,
     userEmail,
     phone,
     listingAddress,
     message,
-    spaceRequired // added the new require from Rashid
+    spaceRequired 
   } = extractCustomFields(content);
-
+console.log('senderName', senderName);
   return {
     actualFromName: actualFromName.trim(),
     actualFromEmail: actualFromEmail.trim(),
-    senderName: userName.trim(),
+    senderName: senderName.trim(),
     senderEmail: userEmail.trim(),
     phone: phone.trim(),
     listingAddress: listingAddress.trim(),
@@ -48,64 +48,144 @@ export function parseEmail(mail) {
  * @returns {Object} with keys: userName, userEmail, phone, listingAddress, message.
  */
 function extractCustomFields(text) {
-  let userName = '';
-  let userEmail = '';
+  let senderName = '';
+  let company = '';
   let phone = '';
+  let userEmail = '';
+  let listingId = '';
+  
+  let spaceRequired = '';
   let listingAddress = '';
   let message = '';
-  let spaceRequired = ''; 
-  // Split the text into lines and remove empty ones.
-  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
 
-  // 1. Look for the forwarded "From:" block.
-  // Find the index of the line that starts with "From: "
-  const fromIndex = lines.findIndex(line => line.startsWith('From: '));
-  let forwardedFromLine = '';
-  if (fromIndex !== -1) {
-    forwardedFromLine = lines[fromIndex];
-    // Check if the next line exists and if it contains an email address.
-    const nextLine = lines[fromIndex + 1];
-    const emailPattern = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
-    if (nextLine && emailPattern.test(nextLine)) {
-      // Append the next line so that the forwarded info is in one block.
-      forwardedFromLine += ' | ' + nextLine;
-    }
+  // Regex patterns
+  const phoneRegex = /(\+?\d{1,3}[-.\s]?(\(\d{3}\)|\d{3})[-.\s]?\d{3}[-.\s]?\d{4})/;
+  const emailRegex = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/;
+  const listingIdRegex = /\(Listing ID\s*:\s*(.*?)\)/i;
+  const spaceRegex = /space required:\s*(.+)/i;
+  const addressRegex = /^\d{4,}.*\d{5}/i; 
+  const hiRegex = /^hi[,.:]?/i;
 
-    // Remove the "From:" prefix and split by the pipe character.
-    const parts = forwardedFromLine.replace(/^From:\s*/i, '').split('|').map(part => part.trim());
-    // Expected parts order: [senderName, company, phone, senderEmail, ...]
-    if (parts.length >= 4) {
-      userName = parts[0];
-      phone = parts[2];
-      // Use regex to robustly extract the email address from parts[3]
-     
-      const emailMatch = parts[4].match(emailPattern);
-      userEmail = emailMatch ? emailMatch[0] : '';
+  // Convert to lines
+  const lines = text
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
+  
+  // 1) Find the "From:" line that actually contains a pipe
+  //    We'll loop until we find a line that starts with "From:" AND includes "|"
+  let fromBlock = '';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (
+      line.toLowerCase().startsWith('from:') &&
+      line.includes('|') // ensure it has pipe(s)
+    ) {
+      // Remove "From: "
+      let combined = line.replace(/^from:\s*/i, '').trim();
+      
+      // The next line might also contain '|' e.g. "ealvarez@... | (Listing ID...)"
+      const nextLine = lines[i + 1] || '';
+      if (nextLine.includes('|')) {
+        combined += ' ' + nextLine.trim();
+      }
+      fromBlock = combined;
+      break; // stop after we find the first valid "From:" with pipes
     }
-  } else {
-    console.warn('No forwarded "From:" line found.');
   }
 
-  // 2. Extract the listing address using a regex pattern.
-  // This pattern looks for a string with 4+ digits, a street keyword, and a 5-digit zip.
-  const addressRegex = /\d{4,}.*(Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Boulevard|Blvd|Fwy|Highway|Hwy).*?\d{5}/i;
-  const addressMatch = text.match(addressRegex);
-  if (addressMatch) {
-    listingAddress = addressMatch[0];
+  // 2) If we found fromBlock, parse it
+  if (fromBlock) {
+    // Split on '|'
+    const tokens = fromBlock
+      .split('|')
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    // Go through each token, match phone/email/listingID, or leftover
+    const leftover = [];
+    for (const token of tokens) {
+      // phone
+      if (!phone) {
+        const pm = token.match(phoneRegex);
+        if (pm) {
+          phone = pm[1];
+          continue;
+        }
+      }
+      // email
+      if (!userEmail) {
+        const em = token.match(emailRegex);
+        if (em) {
+          userEmail = em[0];
+          continue;
+        }
+      }
+      // listing ID
+      if (!listingId) {
+        const lm = token.match(listingIdRegex);
+        if (lm) {
+          listingId = lm[1].trim();
+          continue;
+        }
+      }
+      // leftover (potential name, company, etc.)
+      leftover.push(token);
+    }
+
+    // If leftover has e.g. [ "Emely Alvarez", "Trillium Drivers", ... ]
+    if (leftover.length > 0) {
+      senderName = leftover[0];
+    }
+    if (leftover.length > 1) {
+      company = leftover[1];
+    }
   }
 
-  // 3. Extract the message starting at "Hi,"
-  const hiIndex = text.indexOf('Hi,');
+  // 3) Find "Space Required:"
+  const spaceLine = lines.find(l => spaceRegex.test(l));
+  if (spaceLine) {
+    const match = spaceLine.match(spaceRegex);
+    if (match) {
+      spaceRequired = match[1].trim();
+    }
+  }
+
+  // 4) Listing Address (15055 East Fwy ... 77530)
+  const addressLine = lines.find(l => addressRegex.test(l));
+  if (addressLine) {
+    listingAddress = addressLine;
+  }
+
+  // 5) Grab message after "Hi,"
+  const hiIndex = lines.findIndex(l => hiRegex.test(l));
   if (hiIndex !== -1) {
-    const remainder = text.substring(hiIndex).split('\n\n')[0];
-    message = remainder;
+    const msgLines = [];
+    for (let i = hiIndex; i < lines.length; i++) {
+      const line = lines[i];
+      if (
+        line.toLowerCase().startsWith('visit the marketing center') ||
+        line.toLowerCase().startsWith('space required') ||
+        !line
+      ) {
+        break;
+      }
+      msgLines.push(line);
+    }
+    message = msgLines.join(' ');
   }
- // 4. NEW: Extract “Space Required:” line
-  //    Example: "Space Required: 1500 sq ft"
-  const spaceRegex = /Space Required:\s*(.+)/i;
-  const spaceMatch = text.match(spaceRegex);
-  if (spaceMatch) {
-    spaceRequired = spaceMatch[1]; // might need to refine this to remove any trailing text
-  }
-  return { userName, userEmail, phone, listingAddress, message, spaceRequired };
+
+  return {
+    senderName,
+    company,
+    phone,
+    userEmail,
+    listingId,
+    listingAddress,
+    spaceRequired,
+    message
+  };
 }
+
+
+

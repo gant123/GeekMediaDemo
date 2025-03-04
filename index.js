@@ -47,7 +47,7 @@ dotenv.config();
         //    We'll pass the entire text into "mailparser" structure:
         const parsedData = parseEmailContent({ text: emailBody });
 
-        console.log('Parsed data:', parsedData);
+        //console.log('Parsed data:', parsedData);
 
         // 8) Create a deal with the parsed data
         await createHubSpotDeal(parsedData);

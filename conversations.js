@@ -91,7 +91,7 @@ export async function getThreadMessageContent(threadId, messageId) {
         Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
       }
     });
-    console.log(response.data);
+    //console.log(response.data);
     return response.data;
   } catch (error) {
     console.error(`Error retrieving message content for thread ${threadId}, message ${messageId}:`, error?.response?.data || error);

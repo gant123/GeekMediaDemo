@@ -20,7 +20,6 @@ export async function createHubSpotDeal({ phone, listingAddress, message, sender
 
   // Construct the input for the create call. (Associations are optional.)
   const SimplePublicObjectInputForCreate = { properties };
-
   try {
     const apiResponse = await hubspotClient.crm.deals.basicApi.create(SimplePublicObjectInputForCreate);
     console.log('Deal created successfully:', JSON.stringify(apiResponse, null, 2));
