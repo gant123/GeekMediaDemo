@@ -1,5 +1,6 @@
 import { Client } from '@hubspot/api-client';
 import dotenv from 'dotenv';
+
 dotenv.config();
 
 const hubspotClient = new Client({ accessToken: process.env.HUBSPOT_API_KEY });
@@ -9,11 +10,12 @@ const hubspotClient = new Client({ accessToken: process.env.HUBSPOT_API_KEY });
  *
  * @param {Object} data - An object with keys: phone, listingAddress, message, senderName, senderEmail.
  */
-export async function createHubSpotDeal({ phone, listingAddress, message, senderName, senderEmail }) {
+export async function createHubSpotDeal({ phone, listingAddress, message, senderName, senderEmail, spaceRequired }) {
   // Map the extracted data to HubSpot deal properties.
   const properties = {
-    dealname: `Inquiry: ${listingAddress}`,
-    description: `Sender: ${senderName}\nEmail: ${senderEmail}\nPhone: ${phone}\nMessage: ${message}`
+    dealname: `Inquiry: ${listingAddress} with Space Required ${spaceRequired}`,
+    description: `Sender: ${senderName}\nEmail: ${senderEmail}\nPhone: ${phone}\nMessage: ${message}\nSpace Required: ${spaceRequired}`,
+    
   };
 
   // Construct the input for the create call. (Associations are optional.)

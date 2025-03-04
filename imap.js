@@ -1,9 +1,10 @@
 import Imap from 'node-imap';
-import { simpleParser } from 'mailparser';
-import { parseEmail } from './parser.js';
 import { createHubSpotDeal } from './hubspot.js';
 import dotenv from 'dotenv';
 import fs from 'fs/promises';
+import { parseEmail } from './parser.js';
+import { simpleParser } from 'mailparser';
+
 dotenv.config();
 
 const imapConfig = {
@@ -71,7 +72,7 @@ function checkEmails() {
               }
         
               const parsedData = parseEmail(parsed);
-              console.log(parsedData);
+            //  console.log(parsedData);
         
               // Create HubSpot deal
               await createHubSpotDeal(parsedData);

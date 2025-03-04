@@ -7,28 +7,34 @@
  * @returns {Object} An object with the extracted fields.
  */
 export function parseEmail(mail) {
-  // Get header-level sender info (likely "Geekly Leads <leads@geeklymedia.com>")
+  // Get header-level sender info
   const actualFromName = mail.from?.value?.[0]?.name || '';
   const actualFromEmail = mail.from?.value?.[0]?.address || '';
 
   // Use mail.text if available; fallback to mail.html.
   const content = mail.text || mail.html || '';
 
-  // Extract the forwarded lead details from the content
-  const { userName, userEmail, phone, listingAddress, message } = extractCustomFields(content);
+  // Extract all fields, including our new one
+  const {
+    userName,
+    userEmail,
+    phone,
+    listingAddress,
+    message,
+    spaceRequired // added the new require from Rashid
+  } = extractCustomFields(content);
 
   return {
     actualFromName: actualFromName.trim(),
     actualFromEmail: actualFromEmail.trim(),
-    // The real lead's details from the forwarded content
     senderName: userName.trim(),
     senderEmail: userEmail.trim(),
     phone: phone.trim(),
     listingAddress: listingAddress.trim(),
-    message: message.trim()
+    message: message.trim(),
+    spaceRequired: spaceRequired.trim()  // <== Return it up here as well
   };
 }
-
 /**
  * Helper function to extract custom fields from the forwarded email body.
  * It expects the forwarded "From:" block to be split over two lines, e.g.:
@@ -47,7 +53,7 @@ function extractCustomFields(text) {
   let phone = '';
   let listingAddress = '';
   let message = '';
-
+  let spaceRequired = ''; 
   // Split the text into lines and remove empty ones.
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
 
@@ -94,6 +100,12 @@ function extractCustomFields(text) {
     const remainder = text.substring(hiIndex).split('\n\n')[0];
     message = remainder;
   }
-
-  return { userName, userEmail, phone, listingAddress, message };
+ // 4. NEW: Extract “Space Required:” line
+  //    Example: "Space Required: 1500 sq ft"
+  const spaceRegex = /Space Required:\s*(.+)/i;
+  const spaceMatch = text.match(spaceRegex);
+  if (spaceMatch) {
+    spaceRequired = spaceMatch[1]; // might need to refine this to remove any trailing text
+  }
+  return { userName, userEmail, phone, listingAddress, message, spaceRequired };
 }
